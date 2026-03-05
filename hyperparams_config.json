@@ -1,0 +1,318 @@
+{
+  "wrought": {
+    "by_target": {
+      "UTS (MPa)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 300,
+          "min_samples_split": 2,
+          "min_samples_leaf": 1,
+          "max_depth": null,
+          "random_state": 42
+        }
+      },
+      "YS (MPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 1.0,
+          "n_estimators": 200,
+          "max_depth": 7,
+          "learning_rate": 0.01,
+          "random_state": 42
+        }
+      },
+      "El (%)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.9,
+          "n_estimators": 200,
+          "min_child_weight": 3,
+          "max_depth": 3,
+          "learning_rate": 0.01,
+          "colsample_bytree": 0.7,
+          "random_state": 42
+        }
+      },
+      "Fatigue Strength (MPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 200,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "Shear Strength (MPa)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 300,
+          "min_samples_split": 5,
+          "min_samples_leaf": 2,
+          "max_depth": null,
+          "random_state": 42
+        }
+      },
+      "Y (GPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 200,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "G (GPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 200,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "Density (g/cc)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 200,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "Cp (J/kg-K)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "TC (W/m-K)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "TE Coeff": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 100,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "Thermal Diffusivity ": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "EC Volume (% IACS)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "EC Weight (% IACS)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      }
+    },
+    "XGBoost": {
+      "subsample": 0.7,
+      "n_estimators": 300,
+      "min_child_weight": 1,
+      "max_depth": 5,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.9,
+      "random_state": 42
+    },
+    "RandomForest": {
+      "n_estimators": 300,
+      "min_samples_split": 2,
+      "min_samples_leaf": 1,
+      "max_depth": null,
+      "random_state": 42
+    },
+    "GradientBoosting": {
+      "subsample": 0.8,
+      "n_estimators": 100,
+      "max_depth": 5,
+      "learning_rate": 0.1,
+      "random_state": 42
+    }
+  },
+  "cast": {
+    "by_target": {
+      "Elastic Modulus (GPa)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 300,
+          "min_samples_split": 2,
+          "min_samples_leaf": 1,
+          "max_depth": null,
+          "random_state": 42
+        }
+      },
+      "Fatigue Strength (MPa)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "Shear Modulus (GPa)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 200,
+          "min_samples_split": 2,
+          "min_samples_leaf": 1,
+          "max_depth": 20,
+          "random_state": 42
+        }
+      },
+      "Tensile Strength: Ultimate (UTS) (MPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 100,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "random_state": 42
+        }
+      },
+      "Tensile Strength: Yield (Proof) (MPa)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 100,
+          "max_depth": 3,
+          "learning_rate": 0.01,
+          "random_state": 42
+        }
+      },
+      "Thermal Conductivity (W/m-K)": {
+        "model": "XGBoost",
+        "params": {
+          "subsample": 0.7,
+          "n_estimators": 300,
+          "min_child_weight": 1,
+          "max_depth": 5,
+          "learning_rate": 0.1,
+          "colsample_bytree": 0.9,
+          "random_state": 42
+        }
+      },
+      "Electrical Conductivity: Equal Volume (% IACS)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 200,
+          "min_samples_split": 2,
+          "min_samples_leaf": 1,
+          "max_depth": 20,
+          "random_state": 42
+        }
+      },
+      "Electrical Conductivity: Equal Weight (% IACS)": {
+        "model": "RandomForest",
+        "params": {
+          "n_estimators": 200,
+          "min_samples_split": 5,
+          "min_samples_leaf": 1,
+          "max_depth": 20,
+          "random_state": 42
+        }
+      },
+      "Strength to Weight: Axial (points)": {
+        "model": "GradientBoosting",
+        "params": {
+          "subsample": 0.8,
+          "n_estimators": 100,
+          "max_depth": 7,
+          "learning_rate": 0.01,
+          "random_state": 42
+        }
+      }
+    },
+    "XGBoost": {
+      "subsample": 0.7,
+      "n_estimators": 300,
+      "min_child_weight": 1,
+      "max_depth": 5,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.9,
+      "random_state": 42
+    },
+    "RandomForest": {
+      "n_estimators": 300,
+      "min_samples_split": 2,
+      "min_samples_leaf": 1,
+      "max_depth": null,
+      "random_state": 42
+    },
+    "GradientBoosting": {
+      "subsample": 0.8,
+      "n_estimators": 200,
+      "max_depth": 5,
+      "learning_rate": 0.1,
+      "random_state": 42
+    }
+  },
+  "backward": {
+    "wrought": {
+      "GMM": {
+        "n_components": 20,
+        "covariance_type": "full",
+        "random_state": 42
+      }
+    },
+    "cast": {
+      "GMM": {
+        "n_components": 6,
+        "covariance_type": "full",
+        "random_state": 42
+      }
+    }
+  }
+}
