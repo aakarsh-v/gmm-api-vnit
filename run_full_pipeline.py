@@ -61,7 +61,7 @@ OPTIONAL_NOTEBOOKS = [
 
 # Timeouts in seconds (01 and 06 are slow)
 TIMEOUTS = {
-    "01_hyperparameter_tuning_forward.ipynb": 900,
+    "01_hyperparameter_tuning_forward.ipynb": 1800,
     "02_hyperparameter_tuning_backward.ipynb": 300,
     "06_generate_synthetic_wrought.ipynb": 600,
     "06_generate_synthetic_cast.ipynb": 600,

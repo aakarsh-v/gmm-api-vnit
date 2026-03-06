@@ -67,7 +67,7 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 
 | Step | Notebook | Timeout (max) | What it does |
 |------|----------|----------------|--------------|
-| 1 | **01_hyperparameter_tuning_forward.ipynb** | **15 min** (900 s) | For each property (UTS, Yield, Conductivity, etc.) on wrought and cast data: runs `RandomizedSearchCV` over XGBoost, Random Forest, and Gradient Boosting; picks the best model type and hyperparameters by R²; writes per-target results to `hyperparams_config.json` under `wrought.by_target` and `cast.by_target`. |
+| 1 | **01_hyperparameter_tuning_forward.ipynb** | **30 min** (1800 s) | For each property (UTS, Yield, Conductivity, etc.) on wrought and cast data: runs `RandomizedSearchCV` over XGBoost, Random Forest, and Gradient Boosting; picks the best model type and hyperparameters by R²; writes per-target results to `hyperparams_config.json` under `wrought.by_target` and `cast.by_target`. |
 | 2 | **02_hyperparameter_tuning_backward.ipynb** | **5 min** (300 s) | Fits GMM on composition data only (no properties). Tunes `n_components` and `covariance_type` via BIC, separately for wrought and cast. Saves best GMM params to `backward.wrought.GMM` and `backward.cast.GMM` in `hyperparams_config.json`. |
 | 3 | **06_generate_synthetic_wrought.ipynb** | **10 min** (600 s) | Loads wrought data and config. Fits GMM on real wrought compositions (using params from 02), samples 50k compositions; for each target, builds the per-target forward model from config, trains it on real data, predicts on the 50k compositions. Writes **synthetic_wrought.csv** (composition + predicted properties). |
 | 4 | **06_generate_synthetic_cast.ipynb** | **10 min** (600 s) | Same as 06_wrought but for cast: GMM (cast params) → 50k samples → per-target forward models from config → **synthetic_cast.csv**. |
@@ -77,7 +77,7 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 | 8 | **05_backward_cast.ipynb** | **1 min** (60 s) | Same as 05_wrought but uses **synthetic_cast.csv** and cast property column names. |
 
 **Core pipeline only (01 → 02 → 06_wrought → 06_cast):** about **40 minutes** max.  
-**Full pipeline (all 8):** about **49 minutes** max (timeouts only; actual wall time may be less).
+**Full pipeline (all 8):** about **64 minutes** max (timeouts only; actual wall time may be less).
 
 ---
 
@@ -87,7 +87,7 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 - **Purpose:** Choose, for each property and each dataset (wrought/cast), the best regression model (XGBoost, Random Forest, or Gradient Boosting) and its hyperparameters.
 - **Models:** XGBoost, RandomForestRegressor, GradientBoostingRegressor; `RandomizedSearchCV` (e.g. n_iter=6, cv=3); best by R².
 - **Output:** `hyperparams_config.json` → `wrought.by_target`, `cast.by_target` (each key = target name, value = `{ "model": "...", "params": {...} }`).
-- **Time:** Longest step; up to 15 min.
+- **Time:** Longest step; up to 30 min.
 
 ### 02_hyperparameter_tuning_backward.ipynb
 - **Purpose:** Tune GMM for the composition space only (no property data), so that 06 can sample realistic compositions.
