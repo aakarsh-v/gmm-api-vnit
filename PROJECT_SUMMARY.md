@@ -1,17 +1,15 @@
-# Project Summary: Alloy Property Prediction
+# Project Summary: Alloy Property Prediction (Wrought Only)
 
-This document summarizes the **overall architecture**, **notebook-by-notebook** flow, **models used**, and **typical run times** for the alloy forward/backward modeling pipeline.
+This document summarizes the **overall architecture**, **notebook-by-notebook** flow, **models used**, and **typical run times** for the wrought alloy forward/backward pipeline.
 
 ---
 
 ## Overall Architecture
 
-The project has two main tracks (wrought and cast) that share the same pipeline pattern:
-
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  CONFIG: hyperparams_config.json                                             │
-│  (by_target: best forward model+params per property; backward: GMM params)   │
+│  (wrought.by_target: best forward model+params per property; backward hybrid) │
 └─────────────────────────────────────────────────────────────────────────────┘
          ▲                                    ▲
          │ save                               │ save
@@ -19,35 +17,42 @@ The project has two main tracks (wrought and cast) that share the same pipeline 
 │  01 Forward     │                  │  02 Backward     │
 │  Tuning         │                  │  GMM Tuning      │
 │  (per-target    │                  │  (BIC on        │
-│   XGB/RF/GB)    │                  │   composition)   │
+│   XGB/RF/GB;    │                  │   composition)   │
+│   HGB/ET hard   │                  │                    │
 └────────┬────────┘                  └────────┬────────┘
          │                                    │
          │ by_target                          │ GMM params
          ▼                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  06 Generate Synthetic Pool (wrought)    06 Generate Synthetic Pool (cast)  │
-│  GMM sample → per-target forward models → synthetic_wrought.csv (50k rows)   │
-│  GMM sample → per-target forward models → synthetic_cast.csv (50k rows)      │
+│  06 Generate Synthetic Pool (wrought)                                        │
+│  GMM+BGMM sample → forward prediction → balanced selection → synthetic_wrought.csv │
 └─────────────────────────────────────────────────────────────────────────────┘
-         │                                    │
-         ▼                                    ▼
-┌─────────────────────────┐        ┌─────────────────────────┐
-│  05 Backward Wrought     │        │  05 Backward Cast       │
-│  Load pool, set TARGETS, │        │  Load pool, set TARGETS,│
-│  filter/sort → top-k    │        │  filter/sort → top-k    │
-└─────────────────────────┘        └─────────────────────────┘
+         │
+         ▼
+┌─────────────────────────┐
+│  07 Consistency Report   │
+│  Multi-seed GMM vs BGMM │
+│  win stability summary  │
+└─────────────────────────┘
+         │
+         ▼
+┌─────────────────────────┐
+│  05 Backward Wrought     │
+│  Load pool, set TARGETS, │
+│  filter/sort → top-k    │
+└─────────────────────────┘
 
 Optional (use config, do not create synthetic pool):
-┌─────────────────────────┐        ┌─────────────────────────┐
-│  03 Forward Wrought      │        │  04 Forward Cast        │
-│  Composition → predict  │        │  Composition → predict  │
-│  properties (per-target)│        │  properties (per-target)│
-└─────────────────────────┘        └─────────────────────────┘
+┌─────────────────────────┐
+│  03 Forward Wrought      │
+│  Composition → predict  │
+│  properties (per-target)│
+└─────────────────────────┘
 ```
 
 - **Forward**: composition (12 elements) → property (UTS, Yield, Conductivity, etc.). One regression model per target; model type and hyperparameters are chosen per target in notebook 01.
-- **Backward**: desired properties → candidate compositions. The pipeline does **not** invert the forward model; it builds a large **synthetic pool** of (composition, properties) via GMM sampling + forward prediction, then **searches** that pool (filter/sort) for rows matching your targets.
-- **Config** (`hyperparams_config.json`): stores per-target best model and params (`wrought.by_target`, `cast.by_target`) and GMM params for composition space (`backward.wrought.GMM`, `backward.cast.GMM`). All notebooks that need hyperparameters read from here (or fall back to defaults).
+- **Backward**: desired properties → candidate compositions. The pipeline does **not** invert the forward model; it builds candidate pools via GMM and BGMM sampling + forward prediction, then selects the better pool with balanced scoring before searching top candidates.
+- **Config** (`hyperparams_config.json`): stores per-target best model and params (`wrought.by_target`), generator settings (`backward.wrought.GMM`, `backward.wrought.BGMM`), and scoring weights (`backward.wrought.synthetic_selection`).
 
 ---
 
@@ -55,9 +60,9 @@ Optional (use config, do not create synthetic pool):
 
 | Role | Model | Description |
 |------|--------|-------------|
-| **Forward (per property)** | **XGBoost** / **Random Forest** / **Gradient Boosting** | Tree-based regressors. For each target (e.g. UTS, conductivity), notebook 01 picks the single best of these three and its hyperparameters via `RandomizedSearchCV` (R²). 03, 04, 06 use that choice from config. |
-| **Backward (composition space)** | **GMM (Gaussian Mixture Model)** | Models the distribution of alloy compositions (12 elements). Tuned by BIC in notebook 02 (e.g. `n_components`, `covariance_type`). Used only to **sample** new compositions; no property prediction. |
-| **Backward search** | **None (rule-based)** | 05_backward_wrought and 05_backward_cast do **not** train a model. They load the precomputed synthetic CSV and filter/sort by your `TARGETS` to return top-k candidate alloys. |
+| **Forward (per property)** | **XGBoost** / **Random Forest** / **Gradient Boosting** / **HistGradientBoosting** / **ExtraTrees** | Tree-based regressors. Notebook 01 searches XGB, RF, and GB for every target; for harder targets (YS and Fatigue) it also searches **HistGradientBoosting** and **ExtraTrees**, with more CV folds and iterations. 03 and 06 rebuild the saved model type from config. |
+| **Backward (composition space)** | **GMM + Bayesian GMM (BGMM)** | Both models sample wrought alloy compositions (12 elements). GMM is tuned by BIC in notebook 02; BGMM uses config/default params. Both are sampling-only (no direct property prediction). |
+| **Backward search** | **None (rule-based)** | **05_backward_wrought** does **not** train a model. It loads the precomputed synthetic CSV and filter/sorts by your `TARGETS` to return top-k candidate alloys. |
 
 ---
 
@@ -67,78 +72,51 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 
 | Step | Notebook | Timeout (max) | What it does |
 |------|----------|----------------|--------------|
-| 1 | **01_hyperparameter_tuning_forward.ipynb** | **30 min** (1800 s) | For each property (UTS, Yield, Conductivity, etc.) on wrought and cast data: runs `RandomizedSearchCV` over XGBoost, Random Forest, and Gradient Boosting; picks the best model type and hyperparameters by R²; writes per-target results to `hyperparams_config.json` under `wrought.by_target` and `cast.by_target`. |
-| 2 | **02_hyperparameter_tuning_backward.ipynb** | **5 min** (300 s) | Fits GMM on composition data only (no properties). Tunes `n_components` and `covariance_type` via BIC, separately for wrought and cast. Saves best GMM params to `backward.wrought.GMM` and `backward.cast.GMM` in `hyperparams_config.json`. |
-| 3 | **06_generate_synthetic_wrought.ipynb** | **10 min** (600 s) | Loads wrought data and config. Fits GMM on real wrought compositions (using params from 02), samples 50k compositions; for each target, builds the per-target forward model from config, trains it on real data, predicts on the 50k compositions. Writes **synthetic_wrought.csv** (composition + predicted properties). |
-| 4 | **06_generate_synthetic_cast.ipynb** | **10 min** (600 s) | Same as 06_wrought but for cast: GMM (cast params) → 50k samples → per-target forward models from config → **synthetic_cast.csv**. |
-| 5 | **03_forward_wrought_alloys.ipynb** *(optional)* | **5 min** (300 s) | Forward prediction for wrought: loads config, builds per-target models (XGB/RF/GB from `by_target`), trains on wrought data, evaluates and can predict properties for new compositions. Uses `load_hyperparams_for_target('wrought', target)`. |
-| 6 | **04_forward_cast_alloys.ipynb** *(optional)* | **2 min** (120 s) | Same as 03 but for cast alloys; uses cast `by_target` from config. |
-| 7 | **05_backward_wrought.ipynb** | **1 min** (60 s) | Loads **synthetic_wrought.csv**. You set `TARGETS` (e.g. UTS, Yield, Conductivity). Notebook filters/sorts the pool by those targets and returns top-k candidate alloys (no training). |
-| 8 | **05_backward_cast.ipynb** | **1 min** (60 s) | Same as 05_wrought but uses **synthetic_cast.csv** and cast property column names. |
+| 1 | **01_hyperparameter_tuning_forward.ipynb** | **30 min** (1800 s) | Per property: expanded `RandomizedSearchCV` (XGB/RF/GB; plus HistGradientBoosting & ExtraTrees for YS and Fatigue). Standard targets use fewer iterations than hard targets. Writes `wrought.by_target` to `hyperparams_config.json`. |
+| 2 | **02_hyperparameter_tuning_backward.ipynb** | **5 min** (300 s) | Fits GMM on wrought composition data only; tunes `n_components` and `covariance_type` via BIC; saves `backward.wrought.GMM`. |
+| 3 | **06_generate_synthetic_wrought.ipynb** | **10 min** (600 s) | GMM and BGMM each sample compositions; forward models predict properties; balanced scoring picks the best pool and writes **synthetic_wrought.csv** (+ score table). |
+| 4 | **07_generator_consistency_report.ipynb** *(optional)* | **10 min** (600 s) | Runs multi-seed generator comparison and writes `generator_consistency_runs.csv` + `generator_consistency_summary.csv`. |
+| 5 | **03_forward_wrought_alloys.ipynb** *(optional)* | **5 min** (300 s) | Forward prediction: loads config, trains per-target models on wrought data, evaluates / predicts new compositions. |
+| 6 | **05_backward_wrought.ipynb** | **1 min** (60 s) | Loads **synthetic_wrought.csv**; set `TARGETS`; returns top-k candidate alloys. |
 
-**Core pipeline only (01 → 02 → 06_wrought → 06_cast):** about **40 minutes** max.  
-**Full pipeline (all 8):** about **64 minutes** max (timeouts only; actual wall time may be less).
+**Core pipeline (01 → 02 → 06_wrought):** about **45 minutes** max (timeouts).  
+**Full pipeline with consistency report (core + 07 + 03 + 05):** about **61 minutes** max (timeouts only; actual wall time may be less).
 
 ---
 
 ## Notebook-by-Notebook Summary
 
 ### 01_hyperparameter_tuning_forward.ipynb
-- **Purpose:** Choose, for each property and each dataset (wrought/cast), the best regression model (XGBoost, Random Forest, or Gradient Boosting) and its hyperparameters.
-- **Models:** XGBoost, RandomForestRegressor, GradientBoostingRegressor; `RandomizedSearchCV` (e.g. n_iter=6, cv=3); best by R².
-- **Output:** `hyperparams_config.json` → `wrought.by_target`, `cast.by_target` (each key = target name, value = `{ "model": "...", "params": {...} }`).
-- **Time:** Longest step; up to 30 min.
+- **Purpose:** Best regression model and hyperparameters per wrought property among XGBoost, Random Forest, Gradient Boosting; for YS and Fatigue, also **HistGradientBoosting** and **ExtraTrees**, with heavier search.
+- **Output:** `hyperparams_config.json` → `wrought.by_target` (`model` string must match `build_model` in 03, 06, and `run_pipeline.py`).
 
 ### 02_hyperparameter_tuning_backward.ipynb
-- **Purpose:** Tune GMM for the composition space only (no property data), so that 06 can sample realistic compositions.
-- **Models:** `GaussianMixture`; grid over `n_components` and `covariance_type`; best by BIC.
-- **Output:** `hyperparams_config.json` → `backward.wrought.GMM`, `backward.cast.GMM`.
-- **Time:** Up to 5 min.
+- **Purpose:** Tune GMM on wrought compositions for synthetic sampling in 06.
+- **Output:** `hyperparams_config.json` → `backward.wrought.GMM`.
 
 ### 06_generate_synthetic_wrought.ipynb
-- **Purpose:** Build the search pool for backward wrought: 50k synthetic (composition, properties) rows.
-- **Models:** GMM (from 02) to sample compositions; per-target forward models (from 01) trained on real data and used to predict properties on the 50k rows.
-- **Output:** `synthetic_wrought.csv`.
-- **Time:** Up to 10 min.
+- **Purpose:** Build GMM and BGMM synthetic pools, score both with balanced criteria, and keep the best pool for backward search.
+- **Output:** `synthetic_wrought.csv`, `synthetic_wrought_generator_scores.csv`.
 
-### 06_generate_synthetic_cast.ipynb
-- **Purpose:** Same as 06_wrought but for cast; produces the cast search pool.
-- **Models:** GMM (cast); per-target forward models (cast by_target).
-- **Output:** `synthetic_cast.csv`.
-- **Time:** Up to 10 min.
+### 07_generator_consistency_report.ipynb (optional)
+- **Purpose:** Evaluate GMM vs BGMM winner stability over multiple random seeds.
+- **Output:** `generator_consistency_runs.csv`, `generator_consistency_summary.csv`.
 
 ### 03_forward_wrought_alloys.ipynb (optional)
-- **Purpose:** Train per-target forward models on wrought data (using config) and predict/evaluate on wrought alloys.
-- **Models:** Same as 01 (XGB/RF/GB per target from config); no tuning, just train and predict.
-- **Output:** Metrics, plots, and ability to predict properties for new compositions.
-- **Time:** Up to 5 min.
-
-### 04_forward_cast_alloys.ipynb (optional)
-- **Purpose:** Same as 03 for cast dataset.
-- **Models:** Per-target models from cast `by_target`.
-- **Time:** Up to 2 min.
+- **Purpose:** Train/predict per-target models on wrought data using config.
 
 ### 05_backward_wrought.ipynb
-- **Purpose:** Given desired properties (TARGETS), find top-k wrought alloys from the synthetic pool.
-- **Models:** None; loads `synthetic_wrought.csv`, filters/sorts by TARGETS, returns top candidates.
-- **Output:** Table (and optional plots) of best-matching compositions.
-- **Time:** Up to 1 min.
-
-### 05_backward_cast.ipynb
-- **Purpose:** Same as 05_wrought for cast pool (`synthetic_cast.csv`).
-- **Models:** None; filter/sort only.
-- **Time:** Up to 1 min.
+- **Purpose:** Target properties → top-k candidates from synthetic pool.
+- **Models:** None (filter/sort only).
 
 ### 05_backward_universal_lab.ipynb
-- **Status:** **Deprecated.** Use **05_backward_wrought.ipynb** or **05_backward_cast.ipynb** instead; those use the synthetic pools and per-target config.
+- **Status:** **Deprecated.** Use **05_backward_wrought.ipynb** and the synthetic pool from **06_generate_synthetic_wrought.ipynb**.
 
 ---
 
 ## Data and Config
 
-- **Input data:** `wrought_alloys_final.csv`, `cleaned_cast_dataset.csv` (composition columns: Al, Si, Fe, Cu, Mn, Mg, Cr, Ni, Zn, Ga, V, Ti).
-- **Config:** `hyperparams_config.json` (by_target + backward GMM); created/updated by 01 and 02.
-- **Generated:** `synthetic_wrought.csv`, `synthetic_cast.csv` (by 06).
-- **Scripts:** `run_pipeline.py` (short run), `run_full_pipeline.py` (all notebooks in order with timeouts and logs); `utils.py` (load/save hyperparameters, GMM params).
-
-This summary reflects the current design: per-target forward tuning, separate backward GMM tuning, synthetic pool generation, and backward search by filter/sort on that pool.
+- **Input data:** `wrought_alloys_final.csv` (composition columns: Al, Si, Fe, Cu, Mn, Mg, Cr, Ni, Zn, Ga, V, Ti).
+- **Config:** `hyperparams_config.json` (from 01 and 02, plus optional BGMM and selection settings).
+- **Generated:** `synthetic_wrought.csv`, `synthetic_wrought_generator_scores.csv` (from 06), `generator_consistency_runs.csv`, `generator_consistency_summary.csv` (from 07).
+- **Scripts:** `run_pipeline.py`, `run_full_pipeline.py`, `utils.py`.

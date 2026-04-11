@@ -13,9 +13,10 @@ def load_hyperparams(dataset: str = None, model_name: str = None):
     Load hyperparameters from config.
 
     Args:
-        dataset: 'wrought', 'cast', or 'backward'
-        model_name: 'XGBoost', 'RandomForest', 'GradientBoosting', 'GMM',
-                    or for backward: 'wrought' / 'cast' to get { 'GMM': {...} }
+        dataset: 'wrought' or 'backward'
+        model_name: 'XGBoost', 'RandomForest', 'GradientBoosting',
+                    'HistGradientBoosting', 'ExtraTrees', 'GMM',
+                    or for backward: 'wrought' to get { 'GMM': {...} }
 
     Returns:
         dict of params, or None if not found
@@ -43,7 +44,7 @@ def load_hyperparams_for_target(dataset: str, target: str):
     Load per-target best model and hyperparameters (from by_target).
 
     Args:
-        dataset: 'wrought' or 'cast'
+        dataset: 'wrought'
         target: target column name (e.g. 'UTS (MPa)', 'EC Volume (% IACS)')
 
     Returns:
@@ -68,7 +69,7 @@ def save_per_target_hyperparams(dataset: str, by_target_dict: dict):
     Merges into existing config; does not remove other dataset sections.
 
     Args:
-        dataset: 'wrought' or 'cast'
+        dataset: 'wrought'
         by_target_dict: e.g. { 'UTS (MPa)': { 'model': 'XGBoost', 'params': {...} }, ... }
     """
     config = {}
@@ -89,10 +90,10 @@ def save_per_target_hyperparams(dataset: str, by_target_dict: dict):
 
 def load_backward_gmm_params(dataset: str):
     """
-    Load GMM hyperparameters for backward pipeline (wrought or cast).
+    Load GMM hyperparameters for backward pipeline (wrought composition space).
 
     Args:
-        dataset: 'wrought' or 'cast'
+        dataset: 'wrought'
 
     Returns:
         dict of GMM params (e.g. n_components, covariance_type, random_state), or None
@@ -102,6 +103,39 @@ def load_backward_gmm_params(dataset: str):
         return section["GMM"]
     # Legacy: single backward.GMM
     return load_hyperparams("backward", "GMM")
+
+
+def load_backward_generator_params(dataset: str, generator_name: str):
+    """
+    Load backward generator hyperparameters by name for a dataset.
+
+    Args:
+        dataset: 'wrought'
+        generator_name: e.g. 'GMM', 'BGMM'
+
+    Returns:
+        dict params or None
+    """
+    section = load_hyperparams("backward", dataset)
+    if section and isinstance(section, dict):
+        return section.get(generator_name)
+    return None
+
+
+def load_backward_selection_config(dataset: str):
+    """
+    Load hybrid synthetic pool selection settings for backward pipeline.
+
+    Args:
+        dataset: 'wrought'
+
+    Returns:
+        dict with scoring/weight settings, or None
+    """
+    section = load_hyperparams("backward", dataset)
+    if section and isinstance(section, dict):
+        return section.get("synthetic_selection")
+    return None
 
 
 def save_hyperparams(config_updates: dict):
@@ -138,6 +172,9 @@ def get_default_hyperparams(model_name: str):
             "learning_rate": 0.1,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
+            "reg_alpha": 0.1,
+            "reg_lambda": 1,
+            "gamma": 0,
             "random_state": 42,
         },
         "RandomForest": {
@@ -145,6 +182,7 @@ def get_default_hyperparams(model_name: str):
             "max_depth": None,
             "min_samples_split": 2,
             "min_samples_leaf": 1,
+            "max_features": "sqrt",
             "random_state": 42,
         },
         "GradientBoosting": {
@@ -152,12 +190,78 @@ def get_default_hyperparams(model_name: str):
             "max_depth": 5,
             "learning_rate": 0.1,
             "subsample": 0.8,
+            "min_samples_leaf": 1,
+            "max_features": None,
+            "random_state": 42,
+        },
+        "HistGradientBoosting": {
+            "max_iter": 200,
+            "max_depth": None,
+            "learning_rate": 0.1,
+            "min_samples_leaf": 20,
+            "l2_regularization": 0.0,
+            "max_bins": 255,
+            "random_state": 42,
+        },
+        "ExtraTrees": {
+            "n_estimators": 200,
+            "max_depth": None,
+            "min_samples_split": 2,
+            "min_samples_leaf": 1,
+            "max_features": "sqrt",
+            "random_state": 42,
+        },
+        "AdaBoost": {
+            "n_estimators": 200,
+            "learning_rate": 0.05,
+            "loss": "linear",
+            "random_state": 42,
+        },
+        "Bagging": {
+            "n_estimators": 200,
+            "max_samples": 0.8,
+            "max_features": 1.0,
+            "bootstrap": True,
+            "random_state": 42,
+        },
+        "SVR": {
+            "C": 10.0,
+            "epsilon": 0.1,
+            "kernel": "rbf",
+            "gamma": "scale",
+        },
+        "KNN": {
+            "n_neighbors": 7,
+            "weights": "distance",
+            "p": 2,
+        },
+        "MLP": {
+            "hidden_layer_sizes": [128, 64],
+            "alpha": 0.0001,
+            "learning_rate_init": 0.001,
+            "max_iter": 2000,
             "random_state": 42,
         },
         "GMM": {
             "n_components": 12,
             "covariance_type": "full",
             "random_state": 42,
+        },
+        "BGMM": {
+            "n_components": 20,
+            "covariance_type": "full",
+            "weight_concentration_prior_type": "dirichlet_process",
+            "weight_concentration_prior": 0.1,
+            "max_iter": 1000,
+            "random_state": 42,
+        },
+        "BACKWARD_SYNTHETIC_SELECTION": {
+            "weights": {
+                "backward": 0.5,
+                "forward_realism": 0.25,
+                "composition_realism": 0.25,
+            },
+            "top_k": 200,
         },
     }
     return defaults.get(model_name, {})

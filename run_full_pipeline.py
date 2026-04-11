@@ -1,10 +1,11 @@
 """
 Run the full pipeline by executing every notebook in the correct order.
-No shortcuts: real notebooks, full tuning, 50k synthetic samples.
+No shortcuts: real notebooks, full tuning, 50k synthetic samples (wrought only).
 
 Usage:
-  python run_full_pipeline.py           # Run all 8 notebooks (01, 02, 06_wrought, 06_cast, 03, 04, 05_wrought, 05_cast)
-  python run_full_pipeline.py --core-only   # Run only core 4 (01, 02, 06_wrought, 06_cast)
+  python run_full_pipeline.py           # Run all 5 notebooks (01, 02, 06_wrought, 03, 05_wrought)
+  python run_full_pipeline.py --core-only   # Run only core 3 (01, 02, 06_wrought)
+  python run_full_pipeline.py --with-consistency-report --consistency-seeds 10
 
 Requires: pip install nbconvert
 """
@@ -33,47 +34,42 @@ def log(msg: str, flush: bool = True) -> None:
 
 # Short description of each notebook (for terminal logs)
 NOTEBOOK_DESCRIPTIONS = {
-    "01_hyperparameter_tuning_forward.ipynb": "Forward hyperparameter tuning (per-target best model + params for wrought and cast)",
-    "02_hyperparameter_tuning_backward.ipynb": "Backward GMM tuning (BIC) for wrought and cast composition space",
+    "01_hyperparameter_tuning_forward.ipynb": "Forward hyperparameter tuning (per-target best model + params for wrought)",
+    "02_hyperparameter_tuning_backward.ipynb": "Backward GMM tuning (BIC) for wrought composition space",
     "06_generate_synthetic_wrought.ipynb": "Generate synthetic wrought alloy pool (GMM sample + forward predictions, 50k rows)",
-    "06_generate_synthetic_cast.ipynb": "Generate synthetic cast alloy pool (GMM sample + forward predictions, 50k rows)",
     "03_forward_wrought_alloys.ipynb": "Forward prediction: wrought alloys (train per-target models, predict properties)",
-    "04_forward_cast_alloys.ipynb": "Forward prediction: cast alloys (train per-target models, predict properties)",
     "05_backward_wrought.ipynb": "Backward search: find wrought alloys matching target properties from synthetic pool",
-    "05_backward_cast.ipynb": "Backward search: find cast alloys matching target properties from synthetic pool",
+    "07_generator_consistency_report.ipynb": "Generator consistency report: multi-seed GMM vs BGMM winner stability",
 }
 
-# Core pipeline (required for synthetic pools and backward search)
+# Core pipeline (required for synthetic pool and backward search)
 CORE_NOTEBOOKS = [
     "01_hyperparameter_tuning_forward.ipynb",
     "02_hyperparameter_tuning_backward.ipynb",
     "06_generate_synthetic_wrought.ipynb",
-    "06_generate_synthetic_cast.ipynb",
 ]
 
 # Optional: forward prediction and backward search (use default TARGETS in notebooks)
 OPTIONAL_NOTEBOOKS = [
     "03_forward_wrought_alloys.ipynb",
-    "04_forward_cast_alloys.ipynb",
     "05_backward_wrought.ipynb",
-    "05_backward_cast.ipynb",
 ]
+
+CONSISTENCY_NOTEBOOK = "07_generator_consistency_report.ipynb"
 
 # Timeouts in seconds (01 and 06 are slow)
 TIMEOUTS = {
     "01_hyperparameter_tuning_forward.ipynb": 1800,
     "02_hyperparameter_tuning_backward.ipynb": 300,
     "06_generate_synthetic_wrought.ipynb": 600,
-    "06_generate_synthetic_cast.ipynb": 600,
     "03_forward_wrought_alloys.ipynb": 300,
-    "04_forward_cast_alloys.ipynb": 120,
     "05_backward_wrought.ipynb": 60,
-    "05_backward_cast.ipynb": 60,
+    "07_generator_consistency_report.ipynb": 600,
 }
 DEFAULT_TIMEOUT = 120
 
 
-def run_notebook(path: str, timeout: int) -> None:
+def run_notebook(path: str, timeout: int, env_overrides: dict = None) -> None:
     """Execute a single notebook in place using nbconvert."""
     try:
         import nbformat
@@ -85,12 +81,25 @@ def run_notebook(path: str, timeout: int) -> None:
         )
         sys.exit(1)
 
-    with open(path, "r", encoding="utf-8") as f:
-        nb = nbformat.read(f, as_version=4)
-    ep = ExecutePreprocessor(timeout=timeout)
-    ep.preprocess(nb, {"metadata": {"path": SCRIPT_DIR}})
-    with open(path, "w", encoding="utf-8") as f:
-        nbformat.write(nb, f)
+    old_env = {}
+    if env_overrides:
+        for key, value in env_overrides.items():
+            old_env[key] = os.environ.get(key)
+            os.environ[key] = str(value)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            nb = nbformat.read(f, as_version=4)
+        ep = ExecutePreprocessor(timeout=timeout)
+        ep.preprocess(nb, {"metadata": {"path": SCRIPT_DIR}})
+        with open(path, "w", encoding="utf-8") as f:
+            nbformat.write(nb, f)
+    finally:
+        if env_overrides:
+            for key in env_overrides:
+                if old_env[key] is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = old_env[key]
 
 
 def main():
@@ -98,14 +107,34 @@ def main():
     parser.add_argument(
         "--core-only",
         action="store_true",
-        help="Run only core 4 notebooks (01, 02, 06_wrought, 06_cast).",
+        help="Run only core 3 notebooks (01, 02, 06_wrought).",
+    )
+    parser.add_argument(
+        "--with-consistency-report",
+        action="store_true",
+        help="Run 07_generator_consistency_report.ipynb after synthetic generation.",
+    )
+    parser.add_argument(
+        "--consistency-seeds",
+        type=int,
+        default=10,
+        help="Number of random seeds for 07 consistency report (default: 10).",
+    )
+    parser.add_argument(
+        "--consistency-samples",
+        type=int,
+        default=5000,
+        help="Per-seed synthetic sample size for 07 consistency report (default: 5000).",
     )
     args = parser.parse_args()
 
     if args.core_only:
-        notebooks = CORE_NOTEBOOKS
+        notebooks = CORE_NOTEBOOKS.copy()
     else:
         notebooks = CORE_NOTEBOOKS + OPTIONAL_NOTEBOOKS
+
+    if args.with_consistency_report:
+        notebooks.insert(3, CONSISTENCY_NOTEBOOK)
 
     total = len(notebooks)
     pipeline_start = time.time()
@@ -137,7 +166,13 @@ def main():
         log("-" * 70)
         step_start = time.time()
         try:
-            run_notebook(path, timeout)
+            env_overrides = None
+            if name == CONSISTENCY_NOTEBOOK:
+                env_overrides = {
+                    "GENERATOR_REPORT_SEEDS": args.consistency_seeds,
+                    "GENERATOR_REPORT_SAMPLES": args.consistency_samples,
+                }
+            run_notebook(path, timeout, env_overrides=env_overrides)
             elapsed = time.time() - step_start
             log(f"  OK: completed in {elapsed:.1f}s")
         except Exception as e:

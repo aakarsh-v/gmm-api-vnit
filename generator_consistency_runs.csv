@@ -1,0 +1,4 @@
+seed,winner,gmm_backward_raw,gmm_forward_realism_raw,gmm_composition_realism_raw,gmm_backward_score,gmm_forward_realism_score,gmm_composition_realism_score,gmm_total_score,bgmm_backward_raw,bgmm_forward_realism_raw,bgmm_composition_realism_raw,bgmm_backward_score,bgmm_forward_realism_score,bgmm_composition_realism_score,bgmm_total_score,score_gap
+42,GMM,1.0168501677204245,0.15097843507817568,0.26172940617696855,1.0,1.0,1.0,1.0,1.080741711980171,0.20906427075600773,0.2636075743679663,0.0,0.0,0.0,0.0,1.0
+52,GMM,1.0465322139471542,0.1671507176906535,0.1976684579256445,1.0,1.0,1.0,1.0,1.1037534628142205,0.22209684091912732,0.2081663663797273,0.0,0.0,0.0,0.0,1.0
+62,GMM,1.0589506531360566,0.15882008970251235,0.2582254332613542,1.0,1.0,0.0,0.75,1.0640123612601755,0.22242145289930168,0.25179233145432295,0.0,0.0,1.0,0.25,0.5
