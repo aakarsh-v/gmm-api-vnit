@@ -61,7 +61,7 @@ Optional (use config, do not create synthetic pool):
 | Role | Model | Description |
 |------|--------|-------------|
 | **Forward (per property)** | **XGBoost** / **Random Forest** / **Gradient Boosting** / **HistGradientBoosting** / **ExtraTrees** | Tree-based regressors. Notebook 01 searches XGB, RF, and GB for every target; for harder targets (YS and Fatigue) it also searches **HistGradientBoosting** and **ExtraTrees**, with more CV folds and iterations. 03 and 06 rebuild the saved model type from config. |
-| **Backward (composition space)** | **GMM + Bayesian GMM (BGMM)** | Both models sample wrought alloy compositions (12 elements). GMM is tuned by BIC in notebook 02; BGMM uses config/default params. Both are sampling-only (no direct property prediction). |
+| **Backward (composition space)** | **GMM + Bayesian GMM (BGMM)** | Both models sample wrought alloy compositions (12 elements). Notebook 02 persists both generators (`backward.wrought.GMM` and `backward.wrought.BGMM`) using dataset-level tuning. Both are sampling-only (no direct property prediction). |
 | **Backward search** | **None (rule-based)** | **05_backward_wrought** does **not** train a model. It loads the precomputed synthetic CSV and filter/sorts by your `TARGETS` to return top-k candidate alloys. |
 
 ---
@@ -73,7 +73,7 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 | Step | Notebook | Timeout (max) | What it does |
 |------|----------|----------------|--------------|
 | 1 | **01_hyperparameter_tuning_forward.ipynb** | **30 min** (1800 s) | Per property: expanded `RandomizedSearchCV` (XGB/RF/GB; plus HistGradientBoosting & ExtraTrees for YS and Fatigue). Standard targets use fewer iterations than hard targets. Writes `wrought.by_target` to `hyperparams_config.json`. |
-| 2 | **02_hyperparameter_tuning_backward.ipynb** | **5 min** (300 s) | Fits GMM on wrought composition data only; tunes `n_components` and `covariance_type` via BIC; saves `backward.wrought.GMM`. |
+| 2 | **02_hyperparameter_tuning_backward.ipynb** | **5 min** (300 s) | Tunes both generators on wrought composition data: GMM via BIC and BGMM via holdout log-likelihood; saves `backward.wrought.{GMM,BGMM}`. |
 | 3 | **06_generate_synthetic_wrought.ipynb** | **10 min** (600 s) | GMM and BGMM each sample compositions; forward models predict properties; balanced scoring picks the best pool and writes **synthetic_wrought.csv** (+ score table). |
 | 4 | **07_generator_consistency_report.ipynb** *(optional)* | **10 min** (600 s) | Runs multi-seed generator comparison and writes `generator_consistency_runs.csv` + `generator_consistency_summary.csv`. |
 | 5 | **03_forward_wrought_alloys.ipynb** *(optional)* | **5 min** (300 s) | Forward prediction: loads config, trains per-target models on wrought data, evaluates / predicts new compositions. |
@@ -91,8 +91,8 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 - **Output:** `hyperparams_config.json` → `wrought.by_target` (`model` string must match `build_model` in 03, 06, and `run_pipeline.py`).
 
 ### 02_hyperparameter_tuning_backward.ipynb
-- **Purpose:** Tune GMM on wrought compositions for synthetic sampling in 06.
-- **Output:** `hyperparams_config.json` → `backward.wrought.GMM`.
+- **Purpose:** Tune both GMM and BGMM on wrought compositions for synthetic sampling in 06.
+- **Output:** `hyperparams_config.json` → `backward.wrought.GMM` and `backward.wrought.BGMM`.
 
 ### 06_generate_synthetic_wrought.ipynb
 - **Purpose:** Build GMM and BGMM synthetic pools, score both with balanced criteria, and keep the best pool for backward search.
@@ -101,6 +101,7 @@ Run notebooks in this order. Times are **pipeline timeouts** (max allowed per no
 ### 07_generator_consistency_report.ipynb (optional)
 - **Purpose:** Evaluate GMM vs BGMM winner stability over multiple random seeds.
 - **Output:** `generator_consistency_runs.csv`, `generator_consistency_summary.csv`.
+- **Recommendation:** Run periodically (for example after retuning or dataset updates) to verify generator winner stability.
 
 ### 03_forward_wrought_alloys.ipynb (optional)
 - **Purpose:** Train/predict per-target models on wrought data using config.

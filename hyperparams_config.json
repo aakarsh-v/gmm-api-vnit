@@ -200,20 +200,12 @@
         "random_state": 42
       },
       "BGMM": {
-        "n_components": 30,
+        "n_components": 12,
         "covariance_type": "full",
         "weight_concentration_prior_type": "dirichlet_process",
-        "weight_concentration_prior": 0.1,
+        "weight_concentration_prior": 0.05,
         "max_iter": 1000,
         "random_state": 42
-      },
-      "synthetic_selection": {
-        "weights": {
-          "backward": 0.5,
-          "forward_realism": 0.25,
-          "composition_realism": 0.25
-        },
-        "top_k": 200
       }
     }
   }

@@ -50,8 +50,12 @@ Or open the notebook and run all cells. May take several minutes.
 
 ### Step 2: Backward generator tuning (02)
 
-Tunes GMM (BIC) on wrought composition data. Saves to `backward.wrought.GMM`.
-The hybrid pipeline can also read optional BGMM and selection settings from `backward.wrought.BGMM` and `backward.wrought.synthetic_selection`.
+Tunes both generators on wrought composition data:
+- `GMM`: BIC-based search
+- `BGMM`: holdout average log-likelihood search
+
+Saves both to `backward.wrought.{GMM,BGMM}` in `hyperparams_config.json`.
+Selection weights are read from `backward.wrought.synthetic_selection` (or defaults when absent).
 
 ```bash
 jupyter nbconvert --to notebook --execute --inplace 02_hyperparameter_tuning_backward.ipynb
@@ -74,6 +78,8 @@ Fits both GMM and BGMM on real compositions, samples pools, labels them with per
 `07_generator_consistency_report.ipynb` evaluates generator stability across multiple seeds and saves:
 - `generator_consistency_runs.csv` (one row per seed with GMM vs BGMM scores)
 - `generator_consistency_summary.csv` (win rates and score statistics)
+
+Recommended: run this periodically (for example weekly or after retraining/tuning updates) to confirm the current winner remains stable.
 
 ---
 

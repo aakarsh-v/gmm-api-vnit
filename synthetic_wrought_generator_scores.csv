@@ -1,3 +1,3 @@
-generator,backward_raw,forward_realism_raw,composition_realism_raw,backward_score,forward_realism_score,composition_realism_score,total_score
-GMM,1.0168501677204245,0.15097843507817568,0.26172940617696855,1.0,1.0,1.0,1.0
-BGMM,1.080741711980171,0.20906427075600773,0.2636075743679663,0.0,0.0,0.0,0.0
+generator,backward_raw,forward_realism_raw,composition_realism_raw,backward_score,forward_realism_score,composition_realism_score,total_score,sample_rows,random_seed,n_samples_requested
+GMM,0.8218223233273468,0.14817965759563817,0.22939812753859778,1.0,1.0,1.0,1.0,5000,42,5000
+BGMM,0.8711237304075385,0.20729996168945183,0.2851610170958848,0.0,0.0,0.0,0.0,5000,42,5000

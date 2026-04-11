@@ -186,6 +186,9 @@ def main():
     log("=" * 70)
     log(f"Done. All {total} notebook(s) completed successfully in {total_elapsed:.1f}s total.")
     log("=" * 70)
+    if not args.with_consistency_report:
+        log("Tip: run periodic generator checks with:")
+        log("  python run_full_pipeline.py --with-consistency-report --consistency-seeds 10 --consistency-samples 5000")
 
 
 if __name__ == "__main__":
