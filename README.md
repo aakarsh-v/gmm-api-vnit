@@ -87,6 +87,14 @@ Recommended: run this periodically (for example weekly or after retraining/tunin
 
 **05_backward_wrought.ipynb** — load `synthetic_wrought.csv`, set `TARGETS` (e.g. UTS, Yield), run to get top candidate alloys.
 
+The notebook also includes three runtime pair-check cells (one input at a time via `input()`):
+
+- **EC + UTS check**: enter EC and UTS targets, then the cell evaluates both `EC Volume (% IACS)` + `UTS (MPa)` and `EC Weight (% IACS)` + `UTS (MPa)`.
+- **TE + TC check**: enter `TE Coeff` and `TC (W/m-K)` targets.
+- **Fatigue + YS check**: enter `Fatigue Strength (MPa)` and `YS (MPa)` targets.
+
+Each checker applies strict filtering with a `+/-5%` tolerance band for both properties in that pair. If candidates pass, the notebook reports the best candidate alloy composition (recipe) and key predicted properties. If no candidate passes, it prints a clear no-match message.
+
 ---
 
 ### Optional: Forward prediction (03)
