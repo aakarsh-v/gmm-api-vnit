@@ -8,7 +8,7 @@ This document summarizes the **overall architecture**, **notebook-by-notebook** 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  CONFIG: hyperparams_config.json                                             │
+│  CONFIG: hyperparams_config.json                                            │
 │  (wrought.by_target: best forward model+params per property; backward hybrid) │
 └─────────────────────────────────────────────────────────────────────────────┘
          ▲                                    ▲

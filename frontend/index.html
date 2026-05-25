@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alloy Search — Target Properties</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>Alloy Property Search</h1>
+    <p class="subtitle">Enter target properties to find matching wrought alloy compositions</p>
+    <div id="api-status" class="api-status" aria-live="polite">Checking API…</div>
+  </header>
+
+  <main class="container">
+    <section class="panel form-panel">
+      <h2>Target properties</h2>
+      <p class="hint">Fill in the properties you want. Empty fields are ignored.</p>
+      <form id="search-form">
+        <div class="property-grid" id="property-inputs"></div>
+        <div class="form-actions">
+          <label for="top-k">Top candidates</label>
+          <select id="top-k" name="top_k">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+          </select>
+          <button type="submit" id="submit-btn">Find alloys</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel results-panel">
+      <h2>Candidate alloys</h2>
+      <div id="results" class="results">
+        <p class="empty-state">Enter at least one target property and click Find alloys.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <a href="/docs" target="_blank" rel="noopener">API documentation</a>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
