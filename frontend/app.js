@@ -60,8 +60,9 @@ async function checkHealth() {
       el.className = 'api-status warn';
     }
   } catch (err) {
-    el.textContent = null;
-    el.className = 'api-status warn';
+    el.textContent = '';
+    el.className = '';
+    el.style.display = 'none';
   }
 }
 
