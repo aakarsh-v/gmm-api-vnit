@@ -1,4 +1,4 @@
-const API_BASE = '';
+const API_BASE = 'https://gmm-api-vnit.onrender.com';
 
 const PROPERTIES = [
   { key: 'UTS (MPa)', label: 'UTS (MPa)', default: '550' },
