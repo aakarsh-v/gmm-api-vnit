@@ -60,7 +60,7 @@ async function checkHealth() {
       el.className = 'api-status warn';
     }
   } catch (err) {
-    el.textContent = 'API status check failed. You can still try searching.';
+    el.textContent = null;
     el.className = 'api-status warn';
   }
 }
