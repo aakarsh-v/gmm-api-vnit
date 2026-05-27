@@ -26,14 +26,42 @@ from api.schemas import (
 _startup_errors: list[str] = []
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _build_cors_origins() -> list[str]:
+    defaults = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    extra = os.getenv("CORS_ALLOW_ORIGINS", "")
+    parsed = [o.strip() for o in extra.split(",") if o.strip()]
+    # Keep order stable while removing duplicates.
+    return list(dict.fromkeys(defaults + parsed))
+
+
+def _preload_forward_on_startup() -> bool:
+    # Render free instances can be sensitive to heavy cold-start work.
+    # Default to lazy forward loading there unless explicitly overridden.
+    on_render = _env_flag("RENDER", False)
+    return _env_flag("PRELOAD_FORWARD_MODELS", default=not on_render)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _startup_errors
     _startup_errors = []
-    try:
-        forward_service.load_models()
-    except Exception as e:
-        _startup_errors.append(f"Forward models: {e}")
+    if _preload_forward_on_startup():
+        try:
+            forward_service.load_models()
+        except Exception as e:
+            _startup_errors.append(f"Forward models: {e}")
     try:
         backward_service.load_pool()
     except Exception as e:
@@ -50,12 +78,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=_build_cors_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,10 +111,17 @@ def health():
 @app.post("/api/forward/predict", response_model=ForwardPredictResponse)
 def forward_predict(body: CompositionRequest):
     if not forward_service.is_loaded():
-        raise HTTPException(
-            status_code=503,
-            detail="Forward models not loaded. Ensure wrought_alloys_final.csv exists and restart the API.",
-        )
+        try:
+            forward_service.load_models()
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Forward models not loaded. Ensure wrought_alloys_final.csv and "
+                    "hyperparams_config.json are available on the server. "
+                    f"Load error: {e}"
+                ),
+            ) from e
     try:
         trainer = forward_service.get_trainer()
         composition = body.to_dict()
