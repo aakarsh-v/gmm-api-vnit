@@ -60,8 +60,8 @@ async function checkHealth() {
       el.className = 'api-status warn';
     }
   } catch (err) {
-    el.textContent = 'Cannot reach API. Start server: uvicorn api.main:app --reload --port 8000';
-    el.className = 'api-status error';
+    el.textContent = 'API status check failed. You can still try searching.';
+    el.className = 'api-status warn';
   }
 }
 
