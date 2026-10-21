@@ -200,12 +200,7 @@ function handleHealthError(el) {
   healthCheckAttempt += 1;
   el.textContent = 'Waking up backend server… (Render free tier may take ~30s on cold start)';
   el.className = 'api-status warn';
-  if (healthCheckAttempt < 10) {
-    setTimeout(checkHealth, 4000);
-  } else {
-    el.textContent = 'Backend offline or unreachable. Please try again later.';
-    el.className = 'api-status error';
-  }
+  setTimeout(checkHealth, 4000);
 }
 
 async function searchAlloys(targets, topK) {
