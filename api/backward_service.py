@@ -34,9 +34,18 @@ def format_recipe(composition: dict) -> str:
     )
 
 
-def row_to_candidate(row, targets_in_pool: dict, total_error: float = None) -> dict:
+def row_to_candidate(row, prop_cols: list | dict, total_error: float = None) -> dict:
     composition = normalize_composition_from_row(row)
-    properties = {col: float(row[col]) for col in targets_in_pool}
+    if isinstance(prop_cols, dict):
+        prop_cols = list(prop_cols.keys())
+    properties = {}
+    for col in prop_cols:
+        if col in row:
+            val = float(row[col])
+            properties[col] = val
+            col_strip = col.strip()
+            if col_strip != col:
+                properties[col_strip] = val
     out = {
         "composition": composition,
         "properties": properties,
@@ -74,26 +83,85 @@ def is_loaded() -> bool:
 
 def search_targets(targets: dict, top_k: int = 3) -> list[dict]:
     pool = get_pool()
-    targets_in_pool = {k: v for k, v in targets.items() if k in pool.columns}
-    if not targets_in_pool:
-        available = [c for c in pool.columns if c not in INPUT_COLS and c != "El (%)"]
+    pool_col_map = {c.strip(): c for c in pool.columns}
+
+    # Normalize targets mapping to exact pool column names (handling trailing spaces like 'Thermal Diffusivity ')
+    normalized_targets = {}
+    for k, v in targets.items():
+        if v is None:
+            continue
+        try:
+            val_float = float(v)
+        except (ValueError, TypeError):
+            continue
+        k_clean = str(k).strip()
+        if k in pool.columns:
+            normalized_targets[k] = val_float
+        elif k_clean in pool_col_map:
+            normalized_targets[pool_col_map[k_clean]] = val_float
+
+    if not normalized_targets:
+        available = [c.strip() for c in pool.columns if c not in INPUT_COLS and c != "El (%)"]
         raise ValueError(
             f"None of the target keys found in pool. Available property columns: {available}"
         )
 
     df = pool.copy()
     total_error = np.zeros(len(df))
-    for col, target_val in targets_in_pool.items():
+    for col, target_val in normalized_targets.items():
         scale = max(abs(target_val), 1.0) if target_val != 0 else 1.0
         total_error += np.abs(df[col].values - target_val) / scale
     df["Total_Error"] = total_error
-    winners = df.sort_values("Total_Error").head(top_k)
+    winners = df.sort_values("Total_Error")
+
+    all_prop_cols = [c for c in pool.columns if c not in INPUT_COLS and c != "El (%)"]
 
     candidates = []
+    seen_recipes = set()
+
+    # Pass 1: Select distinct candidates with composition diversity (at least 0.25 wt% element difference)
     for _, row in winners.iterrows():
-        candidates.append(
-            row_to_candidate(row, targets_in_pool, total_error=row["Total_Error"])
-        )
+        cand = row_to_candidate(row, all_prop_cols, total_error=row["Total_Error"])
+        recipe_key = cand["recipe"]
+        if recipe_key in seen_recipes:
+            continue
+
+        is_dup = False
+        for existing in candidates:
+            max_elem_diff = max(
+                abs(cand["composition"][el] - existing["composition"][el])
+                for el in INPUT_COLS
+            )
+            if max_elem_diff < 0.25:
+                is_dup = True
+                break
+
+        if is_dup:
+            continue
+
+        seen_recipes.add(recipe_key)
+        candidates.append(cand)
+        if len(candidates) >= top_k:
+            break
+
+    # Pass 2: If diversity filter was too strict and len(candidates) < top_k, fill with remaining unique recipes
+    if len(candidates) < top_k:
+        for _, row in winners.iterrows():
+            cand = row_to_candidate(row, all_prop_cols, total_error=row["Total_Error"])
+            if cand["recipe"] not in seen_recipes:
+                seen_recipes.add(cand["recipe"])
+                candidates.append(cand)
+                if len(candidates) >= top_k:
+                    break
+
+    # Pass 3: If still under top_k (extreme edge case), fill from winners
+    if len(candidates) < top_k:
+        for _, row in winners.iterrows():
+            cand = row_to_candidate(row, all_prop_cols, total_error=row["Total_Error"])
+            candidates.append(cand)
+            if len(candidates) >= top_k:
+                break
+
     return candidates
 
 

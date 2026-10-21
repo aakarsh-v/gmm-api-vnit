@@ -8,41 +8,62 @@
 </head>
 <body>
   <header class="header">
-    <h1>Alloy Property Search</h1>
-    <p class="subtitle">Enter target properties to find matching wrought alloy compositions</p>
-    <div id="api-status" class="api-status" aria-live="polite"></div>
+    <div class="header-content">
+      <div>
+        <h1>Alloy Property Search</h1>
+        <p class="subtitle">Enter target properties to find matching wrought alloy compositions</p>
+      </div>
+      <div id="api-status" class="api-status" aria-live="polite"></div>
+    </div>
   </header>
 
   <main class="container">
     <section class="panel form-panel">
-      <h2>Target properties</h2>
-      <p class="hint">Fill in the properties you want. Empty fields are ignored.</p>
+      <div class="panel-header">
+        <h2>Target properties</h2>
+        <span class="active-count" id="active-count">0 properties active</span>
+      </div>
+      <p class="hint">Enter values for the properties you want. Unfilled fields are ignored in the search.</p>
+
+      <!-- Quick Presets -->
+      <div class="presets-section">
+        <span class="presets-label">Quick Presets:</span>
+        <div class="preset-buttons" id="preset-buttons"></div>
+      </div>
+
       <form id="search-form">
         <div class="property-grid" id="property-inputs"></div>
+
         <div class="form-actions">
-          <label for="top-k">Top candidates</label>
-          <select id="top-k" name="top_k">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3" selected>3</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-          </select>
-          <button type="submit" id="submit-btn">Find alloys</button>
+          <div class="top-k-wrapper">
+            <label for="top-k">Top candidates</label>
+            <select id="top-k" name="top_k">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+          <button type="submit" id="submit-btn" class="btn btn-primary">Find alloys</button>
+          <button type="button" id="clear-btn" class="btn btn-secondary">Clear all</button>
         </div>
       </form>
     </section>
 
     <section class="panel results-panel">
-      <h2>Candidate alloys</h2>
+      <div class="panel-header">
+        <h2>Candidate alloys</h2>
+        <div id="results-summary" class="results-summary"></div>
+      </div>
       <div id="results" class="results">
-        <p class="empty-state">Enter at least one target property and click Find alloys.</p>
+        <p class="empty-state">Enter one or more target properties or choose a preset above, then click <strong>Find alloys</strong>.</p>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <a href="/docs" target="_blank" rel="noopener">API documentation</a>
+    <a href="/docs" target="_blank" rel="noopener">API documentation (FastAPI Swagger)</a>
   </footer>
 
   <script src="/app.js"></script>

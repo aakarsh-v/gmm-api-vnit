@@ -1,36 +1,126 @@
-const API_BASE = 'https://gmm-api-vnit.onrender.com';
+// Automatically connect to current server if running over HTTP/HTTPS (FastAPI or hosted);
+// Fall back to Render deployment if opened directly via file://
+const API_BASE = window.location.protocol.startsWith('http')
+  ? ''
+  : 'https://gmm-api-vnit.onrender.com';
 
 const PROPERTIES = [
-  { key: 'UTS (MPa)', label: 'UTS (MPa)', default: '550' },
-  { key: 'YS (MPa)', label: 'YS (MPa)', default: '400' },
-  { key: 'Fatigue Strength (MPa)', label: 'Fatigue Strength (MPa)', default: '' },
-  { key: 'Shear Strength (MPa)', label: 'Shear Strength (MPa)', default: '' },
-  { key: 'Y (GPa)', label: 'Y (GPa)', default: '' },
-  { key: 'G (GPa)', label: 'G (GPa)', default: '' },
-  { key: 'Density (g/cc)', label: 'Density (g/cc)', default: '' },
-  { key: 'Cp (J/kg-K)', label: 'Cp (J/kg-K)', default: '' },
-  { key: 'TC (W/m-K)', label: 'TC (W/m-K)', default: '' },
-  { key: 'TE Coeff', label: 'TE Coeff', default: '' },
-  { key: 'Thermal Diffusivity ', label: 'Thermal Diffusivity', default: '' },
-  { key: 'EC Volume (% IACS)', label: 'EC Volume (% IACS)', default: '' },
-  { key: 'EC Weight (% IACS)', label: 'EC Weight (% IACS)', default: '' },
+  { key: 'UTS (MPa)', label: 'UTS (MPa)', range: '100 – 570', placeholder: 'e.g. 450' },
+  { key: 'YS (MPa)', label: 'YS (MPa)', range: '70 – 480', placeholder: 'e.g. 350' },
+  { key: 'Fatigue Strength (MPa)', label: 'Fatigue Strength (MPa)', range: '35 – 180', placeholder: 'e.g. 120' },
+  { key: 'Shear Strength (MPa)', label: 'Shear Strength (MPa)', range: '55 – 325', placeholder: 'e.g. 200' },
+  { key: 'Y (GPa)', label: 'Y (GPa)', range: '67 – 72', placeholder: 'e.g. 69' },
+  { key: 'G (GPa)', label: 'G (GPa)', range: '25 – 27', placeholder: 'e.g. 26' },
+  { key: 'Density (g/cc)', label: 'Density (g/cc)', range: '2.68 – 3.10', placeholder: 'e.g. 2.75' },
+  { key: 'Cp (J/kg-K)', label: 'Cp (J/kg-K)', range: '850 – 910', placeholder: 'e.g. 890' },
+  { key: 'TC (W/m-K)', label: 'TC (W/m-K)', range: '115 – 230', placeholder: 'e.g. 170' },
+  { key: 'TE Coeff', label: 'TE Coeff', range: '22.0 – 24.1', placeholder: 'e.g. 23.5' },
+  { key: 'Thermal Diffusivity ', label: 'Thermal Diffusivity', range: '45 – 95', placeholder: 'e.g. 65' },
+  { key: 'EC Volume (% IACS)', label: 'EC Volume (% IACS)', range: '21 – 62', placeholder: 'e.g. 45' },
+  { key: 'EC Weight (% IACS)', label: 'EC Weight (% IACS)', range: '75 – 205', placeholder: 'e.g. 140' },
+];
+
+const PRESETS = [
+  {
+    name: 'High Strength (7xxx)',
+    targets: { 'UTS (MPa)': 540, 'YS (MPa)': 460 },
+  },
+  {
+    name: 'Medium / Ductile (6xxx)',
+    targets: { 'UTS (MPa)': 260, 'YS (MPa)': 190 },
+  },
+  {
+    name: 'High Thermal Conductivity',
+    targets: { 'TC (W/m-K)': 210, 'Thermal Diffusivity ': 85 },
+  },
+  {
+    name: 'Electrical Conductor',
+    targets: { 'EC Volume (% IACS)': 55, 'EC Weight (% IACS)': 180 },
+  },
+  {
+    name: 'Lightweight Alloy',
+    targets: { 'Density (g/cc)': 2.70, 'UTS (MPa)': 250 },
+  },
 ];
 
 const ELEMENTS = ['Al', 'Si', 'Fe', 'Cu', 'Mn', 'Mg', 'Cr', 'Ni', 'Zn', 'Ga', 'V', 'Ti'];
 
 function initForm() {
   const grid = document.getElementById('property-inputs');
+  grid.innerHTML = '';
+
   PROPERTIES.forEach((prop) => {
     const div = document.createElement('div');
     div.className = 'property-field';
     const id = `prop-${prop.key.replace(/\W+/g, '-')}`;
     div.innerHTML = `
-      <label for="${id}">${prop.label}</label>
+      <label for="${id}">
+        <span>${escapeHtml(prop.label)}</span>
+        <span class="prop-hint">${prop.range}</span>
+      </label>
       <input type="number" step="any" id="${id}" name="${prop.key}" 
-        data-key="${prop.key}" placeholder="—" value="${prop.default}" />
+        data-key="${prop.key}" placeholder="${prop.placeholder}" value="" />
     `;
     grid.appendChild(div);
   });
+
+  // Attach input listener to update styling and active property count
+  grid.querySelectorAll('input').forEach((input) => {
+    input.addEventListener('input', () => {
+      input.classList.toggle('has-value', input.value.trim() !== '');
+      updateActiveCount();
+    });
+  });
+
+  initPresets();
+}
+
+function initPresets() {
+  const container = document.getElementById('preset-buttons');
+  if (!container) return;
+  container.innerHTML = '';
+
+  PRESETS.forEach((preset) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'preset-btn';
+    btn.textContent = preset.name;
+    btn.addEventListener('click', () => applyPreset(preset.targets));
+    container.appendChild(btn);
+  });
+}
+
+function applyPreset(presetTargets) {
+  clearInputs();
+  Object.entries(presetTargets).forEach(([key, val]) => {
+    const input = document.querySelector(`#property-inputs input[data-key="${CSS.escape(key)}"]`);
+    if (input) {
+      input.value = val;
+      input.classList.add('has-value');
+    }
+  });
+  updateActiveCount();
+  // Automatically submit search with preset
+  document.getElementById('search-form').dispatchEvent(new Event('submit'));
+}
+
+function clearInputs() {
+  document.querySelectorAll('#property-inputs input').forEach((input) => {
+    input.value = '';
+    input.classList.remove('has-value');
+  });
+  updateActiveCount();
+  const summaryEl = document.getElementById('results-summary');
+  if (summaryEl) summaryEl.textContent = '';
+}
+
+function updateActiveCount() {
+  const targets = collectTargets();
+  const count = Object.keys(targets).length;
+  const countEl = document.getElementById('active-count');
+  if (countEl) {
+    countEl.textContent = `${count} ${count === 1 ? 'property' : 'properties'} active`;
+  }
 }
 
 function collectTargets() {
@@ -53,16 +143,16 @@ async function checkHealth() {
     const res = await fetch(`${API_BASE}/health`);
     const data = await res.json();
     if (data.backward_pool_loaded) {
-      el.textContent = `API ready · ${data.pool_rows?.toLocaleString() ?? '?'} alloys in search pool`;
+      const serverLabel = API_BASE === '' ? 'Local/Server API' : 'Remote API';
+      el.textContent = `${serverLabel} ready · ${data.pool_rows?.toLocaleString() ?? '?'} alloys in search pool`;
       el.className = 'api-status ok';
     } else {
-      el.textContent = 'API running but search pool not loaded. Run notebook 06 to generate synthetic_wrought.csv.';
+      el.textContent = 'API running but search pool not loaded. Check synthetic_wrought.csv.';
       el.className = 'api-status warn';
     }
   } catch (err) {
-    el.textContent = '';
-    el.className = '';
-    el.style.display = 'none';
+    el.textContent = 'API offline or unreachable';
+    el.className = 'api-status warn';
   }
 }
 
@@ -84,32 +174,114 @@ function renderComposition(composition) {
   const rows = ELEMENTS.filter((el) => (composition[el] ?? 0) > 0.05)
     .map(
       (el) =>
-        `<tr><td>${el}</td><td>${Number(composition[el]).toFixed(2)}%</td></tr>`
+        `<tr><td><strong>${el}</strong></td><td>${Number(composition[el]).toFixed(2)}%</td></tr>`
     )
     .join('');
   return rows
-    ? `<table><thead><tr><th>Element</th><th>wt%</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Element</th><th>Concentration (wt%)</th></tr></thead><tbody>${rows}</tbody></table>`
     : '<p class="empty-state">No composition data</p>';
 }
 
-function renderProperties(properties, targetKeys) {
-  const keys = targetKeys.length ? targetKeys : Object.keys(properties);
-  const rows = keys
+function renderMatchedProperties(candidateProps, targets) {
+  const targetKeys = Object.keys(targets);
+  if (!targetKeys.length) return '';
+
+  const rows = targetKeys
+    .map((k) => {
+      const targetVal = targets[k];
+      const actualVal = candidateProps[k];
+      if (actualVal == null) {
+        return `<tr><td>${escapeHtml(k.trim())}</td><td>${targetVal}</td><td>—</td><td>—</td></tr>`;
+      }
+      const diff = actualVal - targetVal;
+      const pctErr = targetVal !== 0 ? (diff / targetVal) * 100 : 0;
+      const diffClass = Math.abs(pctErr) < 2 ? 'diff-match' : (diff > 0 ? 'diff-pos' : 'diff-neg');
+      const diffSign = diff > 0 ? '+' : '';
+
+      return `
+        <tr>
+          <td><strong>${escapeHtml(k.trim())}</strong></td>
+          <td>${targetVal.toFixed(2)}</td>
+          <td>${actualVal.toFixed(2)}</td>
+          <td class="${diffClass}">${diffSign}${diff.toFixed(2)} (${diffSign}${pctErr.toFixed(1)}%)</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Target Property</th>
+          <th>Requested</th>
+          <th>Matched Value</th>
+          <th>Deviation</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderOtherProperties(candidateProps, targets, candidateIndex) {
+  const targetKeys = new Set(Object.keys(targets).map((k) => k.trim()));
+  const otherKeys = Object.keys(candidateProps).filter(
+    (k) => !targetKeys.has(k.trim())
+  );
+
+  if (otherKeys.length === 0) return '';
+
+  const rows = otherKeys
     .map(
       (k) =>
-        `<tr><td>${k}</td><td>${properties[k] != null ? Number(properties[k]).toFixed(2) : '—'}</td></tr>`
+        `<tr><td>${escapeHtml(k.trim())}</td><td>${candidateProps[k] != null ? Number(candidateProps[k]).toFixed(2) : '—'}</td></tr>`
     )
     .join('');
-  return `<table><thead><tr><th>Property</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  const detailId = `other-props-${candidateIndex}`;
+  return `
+    <div class="other-properties-section">
+      <button type="button" class="toggle-details-btn" onclick="toggleDetails('${detailId}')">
+        Show other estimated properties (${otherKeys.length})
+      </button>
+      <div id="${detailId}" style="display: none; margin-top: 0.5rem;">
+        <table>
+          <thead>
+            <tr><th>Property</th><th>Estimated Value</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
+
+window.toggleDetails = function(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  const btn = el.previousElementSibling;
+  if (btn) {
+    btn.textContent = isHidden ? 'Hide other estimated properties' : 'Show other estimated properties';
+  }
+};
 
 function renderResults(data) {
   const container = document.getElementById('results');
-  const targetKeys = Object.keys(data.targets || {});
+  const summaryEl = document.getElementById('results-summary');
+  const targets = data.targets || {};
+  const targetKeys = Object.keys(targets);
 
   if (!data.candidates || data.candidates.length === 0) {
-    container.innerHTML = '<p class="empty-state">No candidates returned.</p>';
+    container.innerHTML = '<p class="empty-state">No matching candidate alloys found for the given targets.</p>';
+    if (summaryEl) summaryEl.textContent = '';
     return;
+  }
+
+  if (summaryEl) {
+    summaryEl.textContent = `Found ${data.candidates.length} distinct candidate ${data.candidates.length === 1 ? 'alloy' : 'alloys'}`;
   }
 
   container.innerHTML = data.candidates
@@ -117,13 +289,19 @@ function renderResults(data) {
       const rank = i + 1;
       return `
         <article class="candidate-card">
-          <h3>Candidate #${rank}</h3>
-          <p class="error-score">Total error: ${Number(c.total_error).toFixed(4)} (lower is better)</p>
-          <p class="recipe">${escapeHtml(c.recipe)}</p>
-          <h4 style="margin:0.5rem 0 0.25rem;font-size:0.85rem;color:var(--muted)">Composition</h4>
+          <div class="candidate-header">
+            <h3>Candidate #${rank}</h3>
+            <span class="error-badge">Total Error: ${Number(c.total_error).toFixed(4)}</span>
+          </div>
+          <div class="recipe">${escapeHtml(c.recipe)}</div>
+          
+          <div class="section-title">Matched Target Properties</div>
+          ${renderMatchedProperties(c.properties, targets)}
+
+          <div class="section-title">Chemical Composition</div>
           ${renderComposition(c.composition)}
-          <h4 style="margin:0.75rem 0 0.25rem;font-size:0.85rem;color:var(--muted)">Matched properties</h4>
-          ${renderProperties(c.properties, targetKeys)}
+
+          ${renderOtherProperties(c.properties, targets, i)}
         </article>
       `;
     })
@@ -144,13 +322,13 @@ document.getElementById('search-form').addEventListener('submit', async (e) => {
 
   if (Object.keys(targets).length === 0) {
     resultsEl.innerHTML =
-      '<p class="error-msg">Enter at least one target property value.</p>';
+      '<p class="error-msg">Please enter at least one target property value or choose a Quick Preset above.</p>';
     return;
   }
 
   const topK = parseInt(document.getElementById('top-k').value, 10) || 3;
   btn.disabled = true;
-  resultsEl.innerHTML = '<p class="loading">Searching alloy pool…</p>';
+  resultsEl.innerHTML = '<p class="loading">Searching alloy pool for optimal compositions…</p>';
 
   try {
     const data = await searchAlloys(targets, topK);
@@ -160,6 +338,12 @@ document.getElementById('search-form').addEventListener('submit', async (e) => {
   } finally {
     btn.disabled = false;
   }
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  clearInputs();
+  document.getElementById('results').innerHTML =
+    '<p class="empty-state">Enter one or more target properties or choose a preset above, then click <strong>Find alloys</strong>.</p>';
 });
 
 initForm();
