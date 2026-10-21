@@ -1,23 +1,39 @@
-// Automatically connect to current server if running over HTTP/HTTPS (FastAPI or hosted);
-// Fall back to Render deployment if opened directly via file://
-const API_BASE = window.location.protocol.startsWith('http')
-  ? ''
-  : 'https://gmm-api-vnit.onrender.com';
+// Backend API discovery:
+// 1. If running locally on FastAPI dev server (port 8000), use same-origin relative path ''
+// 2. If hosted directly on Render, use same-origin relative path ''
+// 3. For any other frontend host (Vercel, GitHub Pages, Netlify, VS Code Live Server, file://),
+//    route requests to the deployed Render backend:
+const RENDER_BACKEND_URL = 'https://gmm-api-vnit.onrender.com';
+
+function determineApiBase() {
+  const host = window.location.hostname || '';
+  const port = window.location.port || '';
+
+  if ((host === 'localhost' || host === '127.0.0.1') && port === '8000') {
+    return '';
+  }
+  if (host.includes('onrender.com')) {
+    return '';
+  }
+  return RENDER_BACKEND_URL;
+}
+
+let API_BASE = determineApiBase();
 
 const PROPERTIES = [
-  { key: 'UTS (MPa)', label: 'UTS (MPa)', range: '100 – 570', placeholder: 'e.g. 450' },
-  { key: 'YS (MPa)', label: 'YS (MPa)', range: '70 – 480', placeholder: 'e.g. 350' },
-  { key: 'Fatigue Strength (MPa)', label: 'Fatigue Strength (MPa)', range: '35 – 180', placeholder: 'e.g. 120' },
-  { key: 'Shear Strength (MPa)', label: 'Shear Strength (MPa)', range: '55 – 325', placeholder: 'e.g. 200' },
-  { key: 'Y (GPa)', label: 'Y (GPa)', range: '67 – 72', placeholder: 'e.g. 69' },
-  { key: 'G (GPa)', label: 'G (GPa)', range: '25 – 27', placeholder: 'e.g. 26' },
-  { key: 'Density (g/cc)', label: 'Density (g/cc)', range: '2.68 – 3.10', placeholder: 'e.g. 2.75' },
-  { key: 'Cp (J/kg-K)', label: 'Cp (J/kg-K)', range: '850 – 910', placeholder: 'e.g. 890' },
-  { key: 'TC (W/m-K)', label: 'TC (W/m-K)', range: '115 – 230', placeholder: 'e.g. 170' },
-  { key: 'TE Coeff', label: 'TE Coeff', range: '22.0 – 24.1', placeholder: 'e.g. 23.5' },
-  { key: 'Thermal Diffusivity ', label: 'Thermal Diffusivity', range: '45 – 95', placeholder: 'e.g. 65' },
-  { key: 'EC Volume (% IACS)', label: 'EC Volume (% IACS)', range: '21 – 62', placeholder: 'e.g. 45' },
-  { key: 'EC Weight (% IACS)', label: 'EC Weight (% IACS)', range: '75 – 205', placeholder: 'e.g. 140' },
+  { key: 'UTS (MPa)', label: 'UTS (MPa)', range: '100 - 570', placeholder: 'e.g. 450' },
+  { key: 'YS (MPa)', label: 'YS (MPa)', range: '70 - 480', placeholder: 'e.g. 350' },
+  { key: 'Fatigue Strength (MPa)', label: 'Fatigue Strength (MPa)', range: '35 - 180', placeholder: 'e.g. 120' },
+  { key: 'Shear Strength (MPa)', label: 'Shear Strength (MPa)', range: '55 - 325', placeholder: 'e.g. 200' },
+  { key: 'Y (GPa)', label: 'Y (GPa)', range: '67 - 72', placeholder: 'e.g. 69' },
+  { key: 'G (GPa)', label: 'G (GPa)', range: '25 - 27', placeholder: 'e.g. 26' },
+  { key: 'Density (g/cc)', label: 'Density (g/cc)', range: '2.68 - 3.10', placeholder: 'e.g. 2.75' },
+  { key: 'Cp (J/kg-K)', label: 'Cp (J/kg-K)', range: '850 - 910', placeholder: 'e.g. 890' },
+  { key: 'TC (W/m-K)', label: 'TC (W/m-K)', range: '115 - 230', placeholder: 'e.g. 170' },
+  { key: 'TE Coeff', label: 'TE Coeff', range: '22.0 - 24.1', placeholder: 'e.g. 23.5' },
+  { key: 'Thermal Diffusivity ', label: 'Thermal Diffusivity', range: '45 - 95', placeholder: 'e.g. 65' },
+  { key: 'EC Volume (% IACS)', label: 'EC Volume (% IACS)', range: '21 - 62', placeholder: 'e.g. 45' },
+  { key: 'EC Weight (% IACS)', label: 'EC Weight (% IACS)', range: '75 - 205', placeholder: 'e.g. 140' },
 ];
 
 const PRESETS = [
@@ -100,8 +116,7 @@ function applyPreset(presetTargets) {
     }
   });
   updateActiveCount();
-  // Automatically submit search with preset
-  document.getElementById('search-form').dispatchEvent(new Event('submit'));
+  executeSearch();
 }
 
 function clearInputs() {
@@ -137,31 +152,87 @@ function collectTargets() {
   return targets;
 }
 
+let healthCheckAttempt = 0;
+
 async function checkHealth() {
   const el = document.getElementById('api-status');
+  if (!el) return;
+
+  el.textContent = 'Connecting to backend…';
+  el.className = 'api-status warn';
+
+  let res, data;
+  let usedBase = API_BASE;
+
   try {
-    const res = await fetch(`${API_BASE}/health`);
-    const data = await res.json();
-    if (data.backward_pool_loaded) {
-      const serverLabel = API_BASE === '' ? 'Local/Server API' : 'Remote API';
-      el.textContent = `${serverLabel} ready · ${data.pool_rows?.toLocaleString() ?? '?'} alloys in search pool`;
-      el.className = 'api-status ok';
+    res = await fetch(`${usedBase}/health`);
+    data = await res.json();
+  } catch (err1) {
+    // If initial fetch failed and we weren't targeting the Render URL, fallback to Render URL
+    if (usedBase !== RENDER_BACKEND_URL) {
+      try {
+        usedBase = RENDER_BACKEND_URL;
+        API_BASE = RENDER_BACKEND_URL;
+        res = await fetch(`${usedBase}/health`);
+        data = await res.json();
+      } catch (err2) {
+        handleHealthError(el);
+        return;
+      }
     } else {
-      el.textContent = 'API running but search pool not loaded. Check synthetic_wrought.csv.';
-      el.className = 'api-status warn';
+      handleHealthError(el);
+      return;
     }
-  } catch (err) {
-    el.textContent = 'API offline or unreachable';
+  }
+
+  if (data && data.backward_pool_loaded) {
+    const label = usedBase === '' ? 'Backend API' : 'Remote API';
+    el.textContent = `${label} ready · ${data.pool_rows?.toLocaleString() ?? '?'} alloys loaded`;
+    el.className = 'api-status ok';
+  } else {
+    el.textContent = 'API connected · Loading search pool…';
     el.className = 'api-status warn';
+    setTimeout(checkHealth, 3000);
+  }
+}
+
+function handleHealthError(el) {
+  healthCheckAttempt += 1;
+  el.textContent = 'Waking up backend server… (Render free tier may take ~30s on cold start)';
+  el.className = 'api-status warn';
+  if (healthCheckAttempt < 10) {
+    setTimeout(checkHealth, 4000);
+  } else {
+    el.textContent = 'Backend offline or unreachable. Please try again later.';
+    el.className = 'api-status error';
   }
 }
 
 async function searchAlloys(targets, topK) {
-  const res = await fetch(`${API_BASE}/api/backward/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ targets, top_k: topK }),
-  });
+  let url = `${API_BASE}/api/backward/search`;
+  let res;
+
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targets, top_k: topK }),
+    });
+  } catch (networkErr) {
+    // If local/relative failed, attempt fallback to Render URL
+    if (API_BASE !== RENDER_BACKEND_URL) {
+      API_BASE = RENDER_BACKEND_URL;
+      url = `${API_BASE}/api/backward/search`;
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets, top_k: topK }),
+      });
+    } else {
+      throw networkErr;
+    }
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = data.detail || res.statusText || 'Request failed';
@@ -272,7 +343,6 @@ function renderResults(data) {
   const container = document.getElementById('results');
   const summaryEl = document.getElementById('results-summary');
   const targets = data.targets || {};
-  const targetKeys = Object.keys(targets);
 
   if (!data.candidates || data.candidates.length === 0) {
     container.innerHTML = '<p class="empty-state">No matching candidate alloys found for the given targets.</p>';
@@ -314,8 +384,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-document.getElementById('search-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function executeSearch() {
   const targets = collectTargets();
   const resultsEl = document.getElementById('results');
   const btn = document.getElementById('submit-btn');
@@ -327,7 +396,7 @@ document.getElementById('search-form').addEventListener('submit', async (e) => {
   }
 
   const topK = parseInt(document.getElementById('top-k').value, 10) || 3;
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   resultsEl.innerHTML = '<p class="loading">Searching alloy pool for optimal compositions…</p>';
 
   try {
@@ -336,8 +405,13 @@ document.getElementById('search-form').addEventListener('submit', async (e) => {
   } catch (err) {
     resultsEl.innerHTML = `<p class="error-msg">${escapeHtml(err.message)}</p>`;
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
+}
+
+document.getElementById('search-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  executeSearch();
 });
 
 document.getElementById('clear-btn').addEventListener('click', () => {
